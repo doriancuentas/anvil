@@ -1,4 +1,4 @@
-# Claude Code Configuration
+# LLM Agent Configuration for Anvil
 
 ## Hooks Configuration
 
@@ -50,8 +50,9 @@ This project uses **Anvil** for bulletproof code quality management through cont
 
 **Key Commands:**
 
-- `./anvil check` - Complete quality workflow (linting, security, formatting)
-- `./anvil setup` - Initialize containers and configuration
+- `./anvil check [path]` - Complete quality workflow (linting, security, formatting)
+- `./anvil lint [path]` - Fast linting and formatting only
+- `./anvil create_report` - Generate markdown report in `.anvil/report.md`
 - `./anvil results` - Show last quality check results
 
 **Code Quality Tools (via Anvil containers):**

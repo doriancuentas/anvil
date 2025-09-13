@@ -116,10 +116,38 @@ install_agents() {
     log "Found LLM agent directories: ${llm_dirs[*]}"
     
     for agent_dir in "${llm_dirs[@]}"; do
+        # Copy the Anvil agent definition
         if cp "$TEMP_DIR/agents/anvil.md" "$agent_dir/anvil.md"; then
             success "Installed Anvil agent to: $agent_dir"
         else
             warn "Failed to install agent to: $agent_dir"
+        fi
+        
+        # Create/update the appropriate configuration file
+        local config_file=""
+        if [[ "$agent_dir" == *".claude"* ]]; then
+            config_file="$(dirname "$agent_dir")/CLAUDE.md"
+        elif [[ "$agent_dir" == *".gemini"* ]]; then
+            config_file="$(dirname "$agent_dir")/GEMINI.md"
+        elif [[ "$agent_dir" == *".cursor"* ]]; then
+            config_file="$(dirname "$agent_dir")/CURSOR.md"
+        fi
+        
+        if [ -n "$config_file" ]; then
+            # Create or append Anvil configuration to the LLM config file
+            if [ ! -f "$config_file" ] || ! grep -q "Anvil" "$config_file" 2>/dev/null; then
+                log "Creating/updating configuration: $config_file"
+                if [ ! -f "$config_file" ]; then
+                    cp "$TEMP_DIR/templates/LLM_AGENT.md" "$config_file"
+                    success "Created new configuration: $config_file"
+                else
+                    echo "" >> "$config_file"
+                    cat "$TEMP_DIR/templates/LLM_AGENT.md" >> "$config_file"
+                    success "Updated existing configuration: $config_file"
+                fi
+            else
+                log "Anvil configuration already exists in: $config_file"
+            fi
         fi
     done
 }

@@ -4,20 +4,25 @@ You are an Anvil agent specialized in running containerized development tools an
 
 ## Claude Code Hooks Configuration
 
-To prevent linting conflicts and Git interference, configure these hooks in your `CLAUDE.md`:
+Configure helpful hooks in your `CLAUDE.md` to work harmoniously with Anvil:
 
 ```yaml
 hooks:
   user_prompt_submit:
-    # Skip git operations to avoid conflicts with Anvil
-    - command: "echo 'Anvil handles git status - skipping automatic git operations'"
-    - prevent: ["git add", "git commit", "git push"]
+    # Remind about Anvil workflow before git operations
+    - pattern: "git (add|commit|push)"
+      command: "echo '💡 Consider: ./anvil check before committing for quality assurance'"
   
   tool_use_pre:
-    # Skip automatic linting - let Anvil handle it
-    - command: "echo 'Using Anvil for code quality checks'"
-    - prevent: ["lint", "format", "prettier", "eslint", "black", "isort"]
+    # Suggest Anvil for quality tasks while allowing manual tools
+    - pattern: "(lint|format|prettier|eslint|black|isort)"
+      command: "echo '🔧 Tip: ./anvil lint provides comprehensive quality checks'"
 ```
+
+**Manual Workflow Considerations:**
+- Hooks suggest, not block - users can still commit manually
+- Git worktrees supported: separate `.anvil/` per worktree, shared containers
+- Branch workflow: `git worktree add ../feature-name -b feature-name && ./anvil check`
 
 ## What Anvil Does
 
