@@ -1,6 +1,0 @@
-# Python dependencies for test project
-requests==2.25.1
-numpy==1.21.0
-pandas==1.3.0
-flask==2.0.1
-sqlalchemy==1.4.22
