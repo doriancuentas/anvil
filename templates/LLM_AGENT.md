@@ -10,6 +10,10 @@ hooks:
     # Suggest Anvil for quality tasks while allowing manual tools
     - pattern: "(lint|format|prettier|eslint|black|isort|ruff|mypy)"
       command: "echo '🔧 Tip: ./anvil lint provides comprehensive containerized quality checks'"
+  pre_commit_pre:
+    # Run Anvil check before committing
+    - pattern: ".*"
+      command: "./anvil check"
 ```
 
 ## Code Quality Focus

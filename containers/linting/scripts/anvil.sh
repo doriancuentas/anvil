@@ -4,19 +4,6 @@
 
 set -euo pipefail
 
-VERBOSE=false
-while getopts "v" opt; do
-  case $opt in
-    v)
-      VERBOSE=true
-      ;;
-    \?)
-      echo "Invalid option: -$OPTARG" >&2
-      ;;
-  esac
-done
-shift $((OPTIND -1))
-
 ANVIL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_ROOT="$(dirname "$ANVIL_DIR")"
 CONFIG_FILE="$ANVIL_DIR/anvil.yml"
@@ -30,27 +17,19 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 log() {
-    if [ "$VERBOSE" = true ]; then
-        echo -e "${BLUE}[ANVIL]${NC} $1"
-    fi
+    echo -e "${BLUE}[ANVIL]${NC} $1"
 }
 
 error() {
-    if [ "$VERBOSE" = true ]; then
-        echo -e "${RED}[ERROR]${NC} $1" >&2
-    fi
+    echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
 warn() {
-    if [ "$VERBOSE" = true ]; then
-        echo -e "${YELLOW}[WARN]${NC} $1"
-    fi
+    echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
 success() {
-    if [ "$VERBOSE" = true ]; then
-        echo -e "${GREEN}[SUCCESS]${NC} $1"
-    fi
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
 # Ensure anvil.yml config exists
@@ -93,6 +72,7 @@ workflows:
       - "env-detect"
       - "security-scan" 
       - "lint-format"
+      - "git-status"
     fail_fast: false
 
 # Tool availability (updated by scripts)
@@ -117,17 +97,13 @@ EOF
 check_docker() {
     if ! command -v docker &> /dev/null; then
         error "Docker is required but not installed"
-        if [ "$VERBOSE" = true ]; then
-            echo "Install Docker: https://docs.docker.com/get-docker/"
-        fi
+        echo "Install Docker: https://docs.docker.com/get-docker/"
         exit 1
     fi
     
     if ! docker info &> /dev/null; then
         error "Docker daemon is not running"
-        if [ "$VERBOSE" = true ]; then
-            echo "Start Docker daemon and try again"
-        fi
+        echo "Start Docker daemon and try again"
         exit 1
     fi
 }
@@ -292,6 +268,19 @@ EOF
         update_results "js_linting" "warning" "JavaScript/TypeScript linting found issues to fix"
     fi
     
+    # Step 5: Git status
+    log "Step 5: Git status check"
+    if [ -d "$PROJECT_ROOT/.git" ]; then
+        cd "$PROJECT_ROOT"
+        if git status --porcelain | grep -q .; then
+            update_results "git" "warning" "Uncommitted changes detected"
+        else
+            update_results "git" "success" "Working directory clean"
+        fi
+    else
+        update_results "git" "info" "Not a git repository"
+    fi
+    
     success "Quality check workflow completed"
     log "Results written to: $RESULTS_FILE"
 }
@@ -361,16 +350,7 @@ EOF
 
 # Generate human-readable markdown report
 create_report() {
-    local report_file="${1}"
-    
-    # Default to .anvil/report.md if no filename provided
-    if [ -z "$report_file" ]; then
-        report_file="$ANVIL_DIR/report.md"
-    elif [[ "$report_file" != */* ]]; then
-        # If it's just a filename (no path), put it in current directory
-        report_file="./$report_file"
-    fi
-    # Otherwise use the full path as provided
+    local report_file="${1:-report.md}"
     
     if [ ! -f "$RESULTS_FILE" ]; then
         error "No results file found. Run 'anvil check' or 'anvil lint' first."
@@ -407,17 +387,11 @@ EOF
     local failed_count=$(grep -c "status: failed" "$RESULTS_FILE" 2>/dev/null || echo "0")
     local info_count=$(grep -c "status: info" "$RESULTS_FILE" 2>/dev/null || echo "0")
     
-    # Ensure counts are numeric
-    success_count=${success_count:-0}
-    warning_count=${warning_count:-0}
-    failed_count=${failed_count:-0}
-    info_count=${info_count:-0}
-    
     # Determine overall status
     local overall_status="✅ All Good"
-    if [ $failed_count -gt 0 ]; then
+    if [ "$failed_count" -gt 0 ]; then
         overall_status="❌ Issues Found"
-    elif [ $warning_count -gt 0 ]; then
+    elif [ "$warning_count" -gt 0 ]; then
         overall_status="⚠️ Warnings Present"
     fi
     
@@ -468,15 +442,15 @@ Based on the analysis results:
 
 EOF
     
-    if [ $failed_count -gt 0 ]; then
+    if [ "$failed_count" -gt 0 ]; then
         echo "1. **🚨 Address Critical Issues** - Fix failed checks immediately" >> "$report_file"
     fi
     
-    if [ $warning_count -gt 0 ]; then
+    if [ "$warning_count" -gt 0 ]; then
         echo "2. **⚠️ Review Warnings** - Consider fixing warning items for better code quality" >> "$report_file"
     fi
     
-    if [ $success_count -gt 0 ]; then
+    if [ "$success_count" -gt 0 ]; then
         echo "3. **✅ Maintain Standards** - Keep up the good work on passing checks" >> "$report_file"
     fi
     
@@ -751,15 +725,13 @@ COMMANDS:
     clean           Clean up containers and cache
     results         Show last results
 
-    create_report [path]   Generate human-readable markdown report from last results
+    create_report   Generate human-readable markdown report from last results
 
 EXAMPLES:
     $0 check                # Run full quality check on current directory
     $0 check ./src          # Run full quality check on src directory  
     $0 lint ./components    # Run linting only on components directory
-    $0 create_report        # Generate report in .anvil/report.md
-    $0 create_report my.md  # Generate report in ./my.md
-    $0 create_report /path/to/report.md  # Generate report at custom path
+    $0 create_report        # Generate markdown report from last results
     $0 setup                # Setup Anvil in project
     $0 build linting        # Build specific container
     $0 rebuild              # Force rebuild all containers
@@ -768,12 +740,11 @@ EXAMPLES:
     $0 results              # Show last results
 
 The script is designed to be bulletproof:
-- **Code Quality Focus**: Ensures linting before commits, no git management
-- **Global containers**: shared across all projects (efficient)
-- **Missing tools**: containers provide them
-- **Project configs**: mounted as volumes in containers
-- **Failures**: reported, not fixed by LLM
-- **Results**: written to YAML for LLM consumption
+- Global containers = shared across all projects (efficient)
+- Missing tools = containers provide them
+- Project configs = mounted as volumes in containers
+- Failures = reported, not fixed by LLM
+- Results = written to YAML for LLM consumption
 
 EOF
 }
@@ -791,7 +762,7 @@ main() {
             run_lint "${2:-.}"
             ;;
         "create_report")
-            create_report "${2:-}"
+            create_report "${2:-report.md}"
             ;;
         "setup")
             setup_project

@@ -25,7 +25,7 @@ run_semgrep() {
     log "Running Semgrep security analysis..."
     
     local config_args="--config=auto"  # Auto-detect language rules
-    local output_file="semgrep-report.json"
+    local output_file=".anvil/reports/semgrep-report.json"
     
     if semgrep $config_args --json --output="$output_file" .; then
         success "Semgrep scan completed"
@@ -49,7 +49,7 @@ run_semgrep() {
 # Run Bandit for Python files (if already done in linting, skip)
 run_bandit_security() {
     if find . -name "*.py" -not -path "*/.*" | head -1 | grep -q .; then
-        if [ ! -f "bandit-report.json" ]; then
+        if [ ! -f ".anvil/reports/bandit-report.json" ]; then
             log "Running Bandit security scan for Python..."
             
             local config_args=""
@@ -57,7 +57,7 @@ run_bandit_security() {
                 config_args="-c $CONFIG_DIR/.bandit"
             fi
             
-            if bandit $config_args -r . -f json -o bandit-report.json; then
+            if bandit $config_args -r . -f json -o .anvil/reports/bandit-report.json; then
                 success "Bandit security scan completed"
             else
                 error "Bandit found security issues"
@@ -72,10 +72,10 @@ run_bandit_security() {
 # Run npm audit for Node.js projects (if already done in linting, skip)
 run_npm_audit_security() {
     if [ -f "package.json" ]; then
-        if [ ! -f "npm-audit-report.json" ]; then
+        if [ ! -f ".anvil/reports/npm-audit-report.json" ]; then
             log "Running npm audit for Node.js security..."
             
-            if npm audit --audit-level=moderate --json > npm-audit-report.json; then
+            if npm audit --audit-level=moderate --json > .anvil/reports/npm-audit-report.json; then
                 success "npm audit completed"
             else
                 error "npm audit found security vulnerabilities"
@@ -155,7 +155,7 @@ scan_vulnerable_patterns() {
 
 # Generate security summary report
 generate_security_summary() {
-    local summary_file="security-summary.json"
+    local summary_file=".anvil/reports/security-summary.json"
     
     log "Generating security summary..."
     
@@ -163,9 +163,9 @@ generate_security_summary() {
 {
   "timestamp": "$(date -Iseconds)",
   "reports": {
-    "semgrep": $([ -f "semgrep-report.json" ] && echo "true" || echo "false"),
-    "bandit": $([ -f "bandit-report.json" ] && echo "true" || echo "false"),
-    "npm_audit": $([ -f "npm-audit-report.json" ] && echo "true" || echo "false")
+    "semgrep": $([ -f ".anvil/reports/semgrep-report.json" ] && echo "true" || echo "false"),
+    "bandit": $([ -f ".anvil/reports/bandit-report.json" ] && echo "true" || echo "false"),
+    "npm_audit": $([ -f ".anvil/reports/npm-audit-report.json" ] && echo "true" || echo "false")
   },
   "summary": {
     "total_issues": 0,
@@ -181,6 +181,7 @@ EOF
 
 # Main security scanning workflow
 main() {
+    mkdir -p .anvil/reports
     cd "$WORKSPACE"
     
     log "Starting security scanning workflow..."
