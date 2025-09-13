@@ -157,19 +157,24 @@ build_container() {
 # Run containerized command
 run_container() {
     local container_name="$1"
-    shift
+    local target_path="${2:-.}"
+    shift 2
     local cmd="$*"
     
+    # Convert to absolute path
+    local abs_path="$(cd "$target_path" && pwd)"
+    
     log "Running $container_name container: $cmd"
+    log "Target path: $abs_path"
     
     # Ensure container exists
     if ! docker image inspect "anvil/$container_name:latest" &> /dev/null; then
         build_container "$container_name" || return 1
     fi
     
-    # Run container with project mounted
+    # Run container with target path mounted
     docker run --rm \
-        -v "$PROJECT_ROOT:/workspace" \
+        -v "$abs_path:/workspace" \
         -v "$ANVIL_DIR:/anvil" \
         -w /workspace \
         "anvil/$container_name:latest" \
@@ -204,7 +209,10 @@ EOF
 
 # Main quality check workflow
 run_quality_check() {
-    log "Starting quality check workflow..."
+    local target_path="${1:-.}"
+    local abs_path="$(cd "$target_path" && pwd)"
+    
+    log "Starting quality check workflow for: $abs_path"
     
     # Clear previous results
     > "$RESULTS_FILE"
@@ -212,6 +220,7 @@ run_quality_check() {
 # Anvil Results - Updated $(date -Iseconds)
 last_run: "$(date -Iseconds)"
 workflow: "quality_check"
+target_path: "$abs_path"
 issues: []
 suggestions: []
 security_alerts: []
@@ -220,7 +229,7 @@ EOF
     
     # Step 1: Environment detection
     log "Step 1: Environment detection"
-    if python3 "$ANVIL_DIR/scripts/env-detect.py" --format json > "$ANVIL_DIR/env-detection.json"; then
+    if python3 "$ANVIL_DIR/scripts/env-detect.py" --path "$abs_path" --format json > "$ANVIL_DIR/env-detection.json"; then
         success "Environment detection completed"
         update_results "environment" "success" "Environment detected successfully"
     else
@@ -231,7 +240,7 @@ EOF
     
     # Step 2: Security scan (if tools missing, skip with warning)
     log "Step 2: Security scan"
-    if run_container "security" "/anvil/scripts/security-scan.sh"; then
+    if run_container "security" "$abs_path" "/anvil/scripts/security-scan.sh"; then
         success "Security scan completed"
         update_results "security" "success" "Security scan completed"
     else
@@ -241,7 +250,7 @@ EOF
     
     # Step 3: Python linting and formatting
     log "Step 3: Python linting and formatting"
-    if run_container "linting" "/anvil/scripts/run-linting.sh"; then
+    if run_container "linting" "$abs_path" "/anvil/scripts/run-linting.sh"; then
         success "Python linting completed"
         update_results "python_linting" "success" "Python code linting completed"
     else
@@ -251,7 +260,7 @@ EOF
     
     # Step 4: JavaScript/TypeScript linting and formatting
     log "Step 4: JavaScript/TypeScript linting and formatting"
-    if run_container "nodejs" "/anvil/scripts/run-nodejs-linting.sh"; then
+    if run_container "nodejs" "$abs_path" "/anvil/scripts/run-nodejs-linting.sh"; then
         success "JavaScript/TypeScript linting completed"
         update_results "js_linting" "success" "JavaScript/TypeScript linting completed"
     else
@@ -274,6 +283,213 @@ EOF
     
     success "Quality check workflow completed"
     log "Results written to: $RESULTS_FILE"
+}
+
+# Lint-only workflow (faster than full check)
+run_lint() {
+    local target_path="${1:-.}"
+    local abs_path="$(cd "$target_path" && pwd)"
+    
+    log "Starting lint workflow for: $abs_path"
+    
+    # Clear previous results
+    > "$RESULTS_FILE"
+    cat > "$RESULTS_FILE" << EOF
+# Anvil Results - Updated $(date -Iseconds)
+last_run: "$(date -Iseconds)"
+workflow: "lint_only"
+target_path: "$abs_path"
+issues: []
+suggestions: []
+security_alerts: []
+environment: {}
+EOF
+    
+    # Quick environment detection to determine languages
+    log "Detecting project languages..."
+    if python3 "$ANVIL_DIR/scripts/env-detect.py" --path "$abs_path" --format json > "$ANVIL_DIR/env-detection.json"; then
+        update_results "environment" "success" "Languages detected"
+    else
+        warn "Environment detection failed, running all linters"
+        update_results "environment" "warning" "Environment detection failed"
+    fi
+    
+    local exit_code=0
+    
+    # Run Python linting
+    log "Python linting and formatting"
+    if run_container "linting" "$abs_path" "/anvil/scripts/run-linting.sh"; then
+        success "Python linting completed"
+        update_results "python_linting" "success" "Python linting completed"
+    else
+        warn "Python linting found issues"
+        update_results "python_linting" "warning" "Python linting found issues to fix"
+        exit_code=1
+    fi
+    
+    # Run JavaScript/TypeScript linting
+    log "JavaScript/TypeScript linting and formatting"
+    if run_container "nodejs" "$abs_path" "/anvil/scripts/run-nodejs-linting.sh"; then
+        success "JavaScript/TypeScript linting completed"
+        update_results "js_linting" "success" "JavaScript/TypeScript linting completed"
+    else
+        warn "JavaScript/TypeScript linting found issues"
+        update_results "js_linting" "warning" "JavaScript/TypeScript linting found issues to fix"
+        exit_code=1
+    fi
+    
+    if [ $exit_code -eq 0 ]; then
+        success "Lint workflow completed successfully"
+    else
+        warn "Lint workflow found issues to fix"
+    fi
+    
+    log "Results written to: $RESULTS_FILE"
+    return $exit_code
+}
+
+# Generate human-readable markdown report
+create_report() {
+    local report_file="${1}"
+    
+    # Default to .anvil/report.md if no filename provided
+    if [ -z "$report_file" ]; then
+        report_file="$ANVIL_DIR/report.md"
+    elif [[ "$report_file" != */* ]]; then
+        # If it's just a filename (no path), put it in current directory
+        report_file="./$report_file"
+    fi
+    # Otherwise use the full path as provided
+    
+    if [ ! -f "$RESULTS_FILE" ]; then
+        error "No results file found. Run 'anvil check' or 'anvil lint' first."
+        return 1
+    fi
+    
+    log "Creating markdown report: $report_file"
+    
+    # Parse YAML results and generate markdown
+    cat > "$report_file" << 'EOF'
+# 🔧 Anvil Code Quality Report
+
+Generated on: $(date '+%Y-%m-%d %H:%M:%S')
+
+EOF
+    
+    # Extract basic info from results
+    local last_run=$(grep "last_run:" "$RESULTS_FILE" | cut -d'"' -f2)
+    local workflow=$(grep "workflow:" "$RESULTS_FILE" | cut -d'"' -f2 2>/dev/null || echo "quality_check")
+    local target_path=$(grep "target_path:" "$RESULTS_FILE" | cut -d'"' -f2 2>/dev/null || echo ".")
+    
+    cat >> "$report_file" << EOF
+**Last Run:** $last_run  
+**Workflow:** $workflow  
+**Target Path:** $target_path  
+
+## 📊 Summary
+
+EOF
+    
+    # Count results by status
+    local success_count=$(grep -c "status: success" "$RESULTS_FILE" 2>/dev/null || echo "0")
+    local warning_count=$(grep -c "status: warning" "$RESULTS_FILE" 2>/dev/null || echo "0") 
+    local failed_count=$(grep -c "status: failed" "$RESULTS_FILE" 2>/dev/null || echo "0")
+    local info_count=$(grep -c "status: info" "$RESULTS_FILE" 2>/dev/null || echo "0")
+    
+    # Ensure counts are numeric
+    success_count=${success_count:-0}
+    warning_count=${warning_count:-0}
+    failed_count=${failed_count:-0}
+    info_count=${info_count:-0}
+    
+    # Determine overall status
+    local overall_status="✅ All Good"
+    if [ $failed_count -gt 0 ]; then
+        overall_status="❌ Issues Found"
+    elif [ $warning_count -gt 0 ]; then
+        overall_status="⚠️ Warnings Present"
+    fi
+    
+    cat >> "$report_file" << EOF
+**Overall Status:** $overall_status
+
+- ✅ **Success:** $success_count checks passed
+- ⚠️ **Warnings:** $warning_count items need attention  
+- ❌ **Failed:** $failed_count critical issues
+- ℹ️ **Info:** $info_count informational items
+
+## 🔍 Detailed Results
+
+EOF
+    
+    # Parse individual results
+    local in_results=false
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]+category: ]]; then
+            in_results=true
+            local category=$(echo "$line" | sed 's/.*category: *//' | tr -d '"')
+            echo "### 📂 $category" >> "$report_file"
+        elif [[ "$in_results" == true && "$line" =~ ^[[:space:]]+status: ]]; then
+            local status=$(echo "$line" | sed 's/.*status: *//' | tr -d '"')
+            local icon="ℹ️"
+            case "$status" in
+                "success") icon="✅" ;;
+                "warning") icon="⚠️" ;;
+                "failed") icon="❌" ;;
+                "info") icon="ℹ️" ;;
+            esac
+            echo "**Status:** $icon $status" >> "$report_file"
+        elif [[ "$in_results" == true && "$line" =~ ^[[:space:]]+message: ]]; then
+            local message=$(echo "$line" | sed 's/.*message: *//' | tr -d '"')
+            echo "**Message:** $message" >> "$report_file"
+        elif [[ "$in_results" == true && "$line" =~ ^[[:space:]]+timestamp: ]]; then
+            local timestamp=$(echo "$line" | sed 's/.*timestamp: *//' | tr -d '"')
+            echo "**Timestamp:** $timestamp" >> "$report_file"
+            echo "" >> "$report_file"
+        fi
+    done < "$RESULTS_FILE"
+    
+    # Add recommendations section
+    cat >> "$report_file" << 'EOF'
+## 🎯 Next Steps
+
+Based on the analysis results:
+
+EOF
+    
+    if [ $failed_count -gt 0 ]; then
+        echo "1. **🚨 Address Critical Issues** - Fix failed checks immediately" >> "$report_file"
+    fi
+    
+    if [ $warning_count -gt 0 ]; then
+        echo "2. **⚠️ Review Warnings** - Consider fixing warning items for better code quality" >> "$report_file"
+    fi
+    
+    if [ $success_count -gt 0 ]; then
+        echo "3. **✅ Maintain Standards** - Keep up the good work on passing checks" >> "$report_file"
+    fi
+    
+    cat >> "$report_file" << 'EOF'
+
+## 🛠️ Commands Used
+
+- **Full Check:** `./anvil check [path]`
+- **Lint Only:** `./anvil lint [path]`  
+- **View Results:** `./anvil results`
+- **Generate Report:** `./anvil create_report [filename.md]`
+
+---
+*Report generated by Anvil - Bulletproof Development Tooling*
+EOF
+    
+    success "Markdown report created: $report_file"
+    
+    # Show brief summary
+    log "Report Summary:"
+    echo "  Overall Status: $overall_status"
+    echo "  ✅ Success: $success_count | ⚠️ Warnings: $warning_count | ❌ Failed: $failed_count"
+    
+    return 0
 }
 
 # Setup project with Anvil
@@ -514,17 +730,25 @@ USAGE:
     $0 <command> [options]
 
 COMMANDS:
-    check       Run quality check workflow
-    setup       Setup Anvil for this project
-    build       Build containers (global, shared across projects)
-    rebuild     Force rebuild all containers
-    update      Update Anvil installation and rebuild containers
-    uninstall   Remove Anvil completely from this project
-    clean       Clean up containers and cache
-    results     Show last results
+    check [path]    Run complete quality check workflow (default: current dir)
+    lint [path]     Run linting and formatting only (faster, default: current dir)
+    setup           Setup Anvil for this project
+    build           Build containers (global, shared across projects)
+    rebuild         Force rebuild all containers
+    update          Update Anvil installation and rebuild containers
+    uninstall       Remove Anvil completely from this project
+    clean           Clean up containers and cache
+    results         Show last results
+
+    create_report [path]   Generate human-readable markdown report from last results
 
 EXAMPLES:
-    $0 check                # Run full quality check
+    $0 check                # Run full quality check on current directory
+    $0 check ./src          # Run full quality check on src directory  
+    $0 lint ./components    # Run linting only on components directory
+    $0 create_report        # Generate report in .anvil/report.md
+    $0 create_report my.md  # Generate report in ./my.md
+    $0 create_report /path/to/report.md  # Generate report at custom path
     $0 setup                # Setup Anvil in project
     $0 build linting        # Build specific container
     $0 rebuild              # Force rebuild all containers
@@ -549,7 +773,13 @@ main() {
     
     case "${1:-help}" in
         "check")
-            run_quality_check
+            run_quality_check "${2:-.}"
+            ;;
+        "lint")
+            run_lint "${2:-.}"
+            ;;
+        "create_report")
+            create_report "${2:-}"
             ;;
         "setup")
             setup_project
