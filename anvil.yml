@@ -1,0 +1,71 @@
+# Anvil Configuration
+# This YAML drives script behavior, not LLM consumption
+project:
+  name: "virtual_printer"
+  type: "python"  # primary language
+  root: "."
+
+# Container configuration for isolated tool execution
+# NOTE: All paths and names must be space-free for Docker compatibility
+containers:
+  linting:
+    image: "anvil/linting:latest"
+    build_path: "./anvil/containers/linting"
+    tools: ["black", "isort", "flake8", "mypy", "bandit", "safety"]
+    mount_path: "/workspace"
+  
+  security:
+    image: "anvil/security:latest" 
+    build_path: "./anvil/containers/security"
+    tools: ["bandit", "safety", "semgrep", "snyk"]
+    mount_path: "/workspace"
+  
+  git:
+    image: "anvil/git:latest"
+    build_path: "./anvil/containers/git" 
+    tools: ["git", "precommit"]
+    mount_path: "/workspace"
+
+# Script execution flow
+workflows:
+  quality_check:
+    steps:
+      - "env-detect"
+      - "security-scan" 
+      - "lint-format"
+      - "git-status"
+    fail_fast: false  # Continue on errors, report all issues
+    
+  setup_project:
+    steps:
+      - "env-detect"
+      - "setup-containers"
+      - "init-git-hooks"
+      - "create-claude-agent"
+
+# Tool availability matrix (updated by scripts)
+tools:
+  python:
+    black: false
+    isort: false
+    flake8: false
+    mypy: false
+    bandit: false
+    safety: false
+  
+  security:
+    snyk: false
+    semgrep: false
+    owasp_check: false
+  
+  git:
+    pre_commit: false
+    conventional_commits: false
+
+# Script outputs (populated by scripts, read by LLM)
+results:
+  last_run: null
+  environment: {}
+  issues: []
+  suggestions: []
+  security_alerts: []
