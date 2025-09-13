@@ -32,6 +32,61 @@ success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
+# Ensure anvil.yml config exists
+ensure_config() {
+    if [ ! -f "$CONFIG_FILE" ]; then
+        log "Creating default anvil.yml configuration..."
+        cat > "$CONFIG_FILE" << 'EOF'
+# Anvil Configuration
+# Auto-generated default config
+project:
+  name: "$(basename "$PROJECT_ROOT")"
+  type: "auto-detect"
+  root: "."
+
+# Container configuration for isolated tool execution
+containers:
+  linting:
+    image: "anvil/linting:latest"
+    build_path: "./anvil/containers/linting"
+    tools: ["black", "isort", "flake8", "mypy", "bandit", "safety"]
+    mount_path: "/workspace"
+  
+  security:
+    image: "anvil/security:latest" 
+    build_path: "./anvil/containers/security"
+    tools: ["bandit", "safety", "semgrep", "snyk"]
+    mount_path: "/workspace"
+  
+
+# Script execution flow
+workflows:
+  quality_check:
+    steps:
+      - "env-detect"
+      - "security-scan" 
+      - "lint-format"
+      - "git-status"
+    fail_fast: false
+
+# Tool availability (updated by scripts)
+tools:
+  python: {}
+  security: {}
+  git: {}
+
+# Results (populated by scripts)
+results:
+  last_run: null
+  environment: {}
+  issues: []
+  suggestions: []
+  security_alerts: []
+EOF
+        success "Default configuration created at $CONFIG_FILE"
+    fi
+}
+
 # Check if Docker is available
 check_docker() {
     if ! command -v docker &> /dev/null; then
@@ -195,7 +250,7 @@ setup_project() {
     log "Setting up project with Anvil..."
     
     # Build all containers (no spaces in names)
-    for container in linting security git; do
+    for container in linting security; do
         build_container "$container" || warn "Failed to build $container container"
     done
     
@@ -239,6 +294,7 @@ EOF
 
 # Main command dispatch
 main() {
+    ensure_config
     check_docker
     
     case "${1:-help}" in
@@ -252,7 +308,7 @@ main() {
             if [ -n "${2:-}" ]; then
                 build_container "$2"
             else
-                for container in linting security git; do
+                for container in linting security; do
                     build_container "$container"
                 done
             fi
