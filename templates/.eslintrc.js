@@ -27,6 +27,7 @@ module.exports = {
     'security',
     'promise',
     'unicorn',
+    'unused-imports',
   ],
   rules: {
     // TypeScript specific
@@ -37,6 +38,9 @@ module.exports = {
     '@typescript-eslint/no-non-null-assertion': 'warn',
     '@typescript-eslint/prefer-const': 'error',
     '@typescript-eslint/no-var-requires': 'error',
+
+    // Unused imports
+    'unused-imports/no-unused-imports': 'error',
 
     // Import rules
     'import/order': [

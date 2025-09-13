@@ -39,7 +39,8 @@ RUN pip3 install \
 # Install Node.js tools
 RUN npm install -g \
     prettier \
-    eslint
+    eslint \
+    eslint-plugin-unused-imports
 
 # Install Semgrep
 RUN python3 -m pip install semgrep
