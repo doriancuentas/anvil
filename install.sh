@@ -137,6 +137,13 @@ install_anvil() {
     cp -r "$TEMP_DIR/scripts" "$target_dir/"
     cp -r "$TEMP_DIR/containers" "$target_dir/"
     
+    # Copy template configurations to .anvil directory
+    if [ -d "$TEMP_DIR/templates" ]; then
+        log "Installing configuration templates..."
+        cp -r "$TEMP_DIR/templates/"* "$target_dir/"
+        success "Configuration templates installed"
+    fi
+    
     # Make scripts executable
     chmod +x "$target_dir/scripts"/*.sh
     

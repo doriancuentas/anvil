@@ -5,6 +5,41 @@ All notable changes to Anvil will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-09-12
+
+### Added
+- 📋 **Comprehensive configuration templates** for consistent code patterns across projects
+- 🐍 **Ruff integration** - Ultra-fast Python linter and formatter with extensive rule sets
+- 🟨 **Node.js container** with ESLint, Prettier, TypeScript support
+- ⚙️ **Template system** - Configuration files copied to `.anvil/` for user customization
+- 🔧 **Enhanced linting scripts** that respect project and Anvil configurations
+- 🛡️ **Advanced security scanning** with Semgrep, Bandit, and npm audit
+- 📝 **Standardized configurations** for all major development tools
+
+### Configuration Templates
+- **ruff.toml** - Comprehensive Python linting with 50+ rule categories
+- **pyproject.toml** - Python tools configuration (Black, isort, mypy, pytest, coverage)
+- **.eslintrc.js** - JavaScript/TypeScript linting with security and modern JS rules
+- **.prettierrc.json** - Code formatting for JS/TS/JSON/YAML/Markdown
+- **.bandit** - Python security scanning configuration
+- **.gitignore** - Multi-language gitignore patterns
+
+### Enhanced Tools
+- **Ruff** - Modern Python linter replacing multiple tools
+- **ESLint plugins** - Security, import ordering, unicorn rules
+- **TypeScript support** - Full type checking integration
+- **Multi-language security** - Semgrep for universal vulnerability detection
+- **Dependency auditing** - npm audit and safety checks
+
+### Workflow Improvements
+- 🔄 **Config hierarchy** - Project configs override Anvil defaults
+- 🏗️ **Auto-detection** - Smart language and framework detection
+- 📊 **Structured reporting** - JSON reports for all tools
+- 🛠️ **Fallback support** - Graceful degradation when tools are missing
+
+### Breaking Changes
+- None (fully backward compatible)
+
 ## [1.0.0] - 2025-09-12
 
 ### Added

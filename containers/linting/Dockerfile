@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python linting tools
 RUN pip install --no-cache-dir \
+    ruff==0.6.* \
     black==23.* \
     isort==5.* \
     flake8==6.* \

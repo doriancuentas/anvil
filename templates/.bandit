@@ -1,0 +1,125 @@
+# Bandit security linting configuration
+# https://bandit.readthedocs.io/en/latest/config.html
+
+[bandit]
+# Directories to exclude from scanning
+exclude_dirs = [
+    "tests",
+    "test",
+    "*_test.py",
+    "test_*.py",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+    ".env",
+    "env",
+    "node_modules",
+    ".git",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tox",
+    "migrations",
+    "static",
+    "media"
+]
+
+# Test IDs to skip (customize based on project needs)
+skips = [
+    "B101",  # assert_used - common in tests and development
+    "B601",  # paramiko_calls - if using paramiko intentionally
+    "B602",  # subprocess_popen_with_shell_equals_true - when shell=True is needed
+    "B603",  # subprocess_without_shell_equals_true - overly restrictive
+    "B607",  # start_process_with_partial_path - common in scripts
+]
+
+# Confidence levels: LOW, MEDIUM, HIGH
+# Only report issues with MEDIUM or HIGH confidence
+# Remove LOW to see all potential issues
+confidence = ["MEDIUM", "HIGH"]
+
+# Severity levels: LOW, MEDIUM, HIGH  
+# Report all severities by default
+# severity = ["MEDIUM", "HIGH"]
+
+[bandit.blacklist_calls]
+# Customize dangerous function calls to flag
+bad_name_sets = [
+    "pickle",
+    "cPickle", 
+    "dill",
+    "shelve",
+    "subprocess",
+    "os",
+    "eval",
+    "exec",
+    "execfile",
+    "compile",
+    "__import__",
+    "reload",
+    "input"
+]
+
+[bandit.blacklist_imports]
+# Modules that should trigger warnings
+bad_import_sets = [
+    "telnetlib",
+    "ftplib", 
+    "pickletools",
+    "pickle",
+    "cPickle",
+    "dill",
+    "shelve"
+]
+
+[bandit.hardcoded_password]
+# Words that indicate a password variable
+word_list = [
+    "password", 
+    "pass", 
+    "passwd", 
+    "pwd",
+    "secret",
+    "token",
+    "key",
+    "api_key",
+    "apikey",
+    "access_token",
+    "auth_token",
+    "private_key",
+    "secret_key"
+]
+
+[bandit.ssl_with_bad_version]
+# Bad SSL/TLS protocol versions
+bad_protocol_versions = [
+    "PROTOCOL_SSLv2",
+    "PROTOCOL_SSLv3", 
+    "PROTOCOL_TLSv1",
+    "SSLv2_METHOD",
+    "SSLv23_METHOD", 
+    "SSLv3_METHOD",
+    "TLSv1_METHOD"
+]
+
+[bandit.ssl_with_bad_defaults]
+# Check for SSL contexts with bad defaults
+check_typed_list = true
+
+[bandit.sql_statements]
+# SQL injection patterns to detect
+sql_statements = [
+    "select",
+    "insert", 
+    "update",
+    "delete",
+    "drop",
+    "create",
+    "alter",
+    "exec",
+    "execute",
+    "union",
+    "fetch",
+    "declare"
+]
