@@ -4,18 +4,37 @@ Anvil provides containerized development tools and intelligent LLM integration f
 
 ## ⚡ Quick Start
 
+### One-Line Installation
+
 ```bash
-# Install in your project (future - installer coming soon)
-curl -sSL https://raw.githubusercontent.com/your-org/anvil/main/install.sh | bash
+# Install Anvil in any project directory
+curl -sSL https://raw.githubusercontent.com/doriancuentas/anvil/main/install.sh | bash
+```
 
-# Or manually copy anvil/ folder to your project root
-cp -r /path/to/anvil ./anvil
+This will:
+- 🔍 Auto-detect LLM agents (Claude Code, Gemini, Cursor)
+- 📁 Install Anvil to `.anvil/` directory  
+- 🤖 Copy agent definitions to your LLM tools
+- ⚡ Create convenience `anvil` wrapper script
 
+### Manual Installation
+
+```bash
+# Clone and setup manually
+git clone https://github.com/doriancuentas/anvil.git
+cd anvil
+chmod +x scripts/anvil.sh
+./scripts/anvil.sh setup
+```
+
+### First Run
+
+```bash
 # Run quality check
-./anvil/scripts/anvil.sh check
+./anvil check
 
-# Setup containers and git hooks  
-./anvil/scripts/anvil.sh setup
+# Or use full path
+./.anvil/scripts/anvil.sh check
 ```
 
 ## 📋 Prerequisites
@@ -48,40 +67,40 @@ cp -r /path/to/anvil ./anvil
 
 ```bash
 # Show help
-./anvil/scripts/anvil.sh help
+./anvil help
 
 # Run full quality check
-./anvil/scripts/anvil.sh check
+./anvil check
 
 # Setup project with Anvil
-./anvil/scripts/anvil.sh setup
+./anvil setup
 
 # Build specific container
-./anvil/scripts/anvil.sh build linting
+./anvil build linting
 
 # Build all containers
-./anvil/scripts/anvil.sh build
+./anvil build
 
 # View last results
-./anvil/scripts/anvil.sh results
+./anvil results
 
 # Clean up containers
-./anvil/scripts/anvil.sh clean
+./anvil clean
 ```
 
 ### Environment Detection
 
 ```bash
 # Detect project structure and suggest improvements
-python3 anvil/scripts/env-detect.py --check-versions --suggest-isolation
+python3 scripts/env-detect.py --check-versions --suggest-isolation
 
 # Output as JSON
-python3 anvil/scripts/env-detect.py --format json
+python3 scripts/env-detect.py --format json
 ```
 
 ## 🔧 Configuration
 
-Anvil auto-creates `anvil/anvil.yml` on first run. Customize it for your project:
+Anvil auto-creates `anvil.yml` on first run. Customize it for your project:
 
 ```yaml
 project:
@@ -112,44 +131,49 @@ workflows:
 
 ### Claude Code Integration
 
-Copy the Anvil agent to Claude Code:
+Copy the Anvil agent to your LLM agent directory:
 
 ```bash
-# Copy agent to .claude/agents/
-cp anvil/agents/anvil.md .claude/agents/
+# For Claude Code
+cp agents/anvil.md ~/.claude/agents/
 
-# Or install via Claude Code command
-# /install-agent anvil
+# For Gemini
+cp agents/anvil.md ~/.gemini/agents/
+
+# Or copy to project-specific directory
+mkdir -p .claude/agents && cp agents/anvil.md .claude/agents/
 ```
 
 ### Usage in Claude Code
 
 ```
 User: "Run quality check on my Python project"
-Claude: *executes ./anvil/scripts/anvil.sh check*
-Claude: *reads anvil/results.yml*
+Claude: *executes ./anvil check*
+Claude: *reads .anvil/results.yml*
 Claude: "Found 3 formatting issues (auto-fixed) and 1 security alert in requirements.txt"
 ```
 
 ## 📁 Project Structure
 
 ```
+anvil/                              # ← Anvil repository
+├── anvil.yml                       # Configuration (auto-created)
+├── results.yml                     # Latest results (LLM reads this)
+├── scripts/
+│   ├── anvil.sh                   # Main orchestration script
+│   └── env-detect.py              # Environment detection
+├── containers/
+│   ├── linting/                   # Python/Node linting tools
+│   └── security/                  # Security scanning tools
+├── agents/
+│   └── anvil.md                   # LLM agent definition
+└── README.md                      # This file
+
+# When used in projects:
 your-project/
-├── anvil/                          # ← Anvil installation (modifiable)
-│   ├── anvil.yml                   # Configuration
-│   ├── results.yml                 # Latest results (LLM reads this)
-│   ├── scripts/
-│   │   ├── anvil.sh               # Main orchestration script
-│   │   └── env-detect.py          # Environment detection
-│   ├── containers/
-│   │   ├── linting/               # Python/Node linting tools
-│   │   └── security/              # Security scanning tools
-│   └── README.md                  # This file
-├── .claude/agents/                 # ← LLM agent integration
+├── .claude/agents/                 # ← Copy agent here
 │   └── anvil.md                   # Anvil LLM agent
-└── your-app/                      # Your actual project
-    ├── src/
-    └── tests/
+└── src/                           # Your project files
 ```
 
 ## 🏁 Workflow Examples
@@ -158,10 +182,10 @@ your-project/
 
 ```bash
 # Before starting work
-./anvil/scripts/anvil.sh check
+./anvil check
 
 # After making changes  
-./anvil/scripts/anvil.sh check
+./anvil check
 
 # Let LLM agent handle issues
 # "Claude, fix the linting issues found by anvil"
@@ -171,27 +195,27 @@ your-project/
 
 ```bash
 # In your CI pipeline
-./anvil/scripts/anvil.sh check --fail-on-issues
+./anvil check --fail-on-issues
 
 # Or just check without auto-fixing
-./anvil/scripts/anvil.sh check --check-only
+./anvil check --check-only
 ```
 
 ### New Project Setup
 
 ```bash
 # Clone project
-git clone your-repo
-cd your-repo
+git clone https://github.com/doriancuentas/anvil.git
+cd anvil
 
 # Install Anvil
-curl -sSL https://install-anvil.sh | bash
+curl -sSL https://raw.githubusercontent.com/doriancuentas/anvil/main/install.sh | bash
 
 # Setup tooling
-./anvil/scripts/anvil.sh setup
+./anvil setup
 
 # First quality check
-./anvil/scripts/anvil.sh check
+./anvil check
 ```
 
 ## 🐛 Troubleshooting
@@ -211,7 +235,7 @@ docker info
 
 Anvil containers provide all tools. If something's missing:
 
-1. Check container builds: `./anvil/scripts/anvil.sh build`
+1. Check container builds: `./anvil build`
 2. Verify Docker has enough resources
 3. Check anvil.yml configuration
 
@@ -219,7 +243,7 @@ Anvil containers provide all tools. If something's missing:
 
 ```bash
 # Make scripts executable
-chmod +x anvil/scripts/*.sh
+chmod +x scripts/*.sh
 
 # Fix container permissions
 docker run --rm -v $(pwd):/workspace anvil/linting:latest chown -R $(id -u):$(id -g) /workspace
@@ -236,7 +260,7 @@ docker run --rm -v $(pwd):/workspace anvil/linting:latest chown -R $(id -u):$(id
 
 1. Fork the repository
 2. Create feature branch
-3. Run `./anvil/scripts/anvil.sh check` before committing
+3. Run `./anvil check` before committing
 4. Submit pull request
 
 ## 📄 License
