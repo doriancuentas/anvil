@@ -4,31 +4,16 @@
 
 # --- Configuration ---
 IMAGE_NAME="anvil"
-CONTAINER_NAME="anvil-container"
 
 # --- Helper Functions ---
 
-# Function to print colored output
-print_info() {
-    echo -e "\033[1;34m[INFO] $1\033[0m"
-}
-
-print_success() {
-    echo -e "\033[1;32m[SUCCESS] $1\033[0m"
-}
-
-print_warning() {
-    echo -e "\033[1;33m[WARNING] $1\033[0m"
-}
-
-print_error() {
-    echo -e "\033[1;31m[ERROR] $1\033[0m"
-    exit 1
-}
+print_info() { echo -e "\033[1;34m[INFO] $1\033[0m"; }
+print_success() { echo -e "\033[1;32m[SUCCESS] $1\033[0m"; }
+print_warning() { echo -e "\033[1;33m[WARNING] $1\033[0m"; }
+print_error() { echo -e "\033[1;31m[ERROR] $1\033[0m"; exit 1; }
 
 # --- Docker Functions ---
 
-# Function to build the Docker image if it doesn't exist
 build_image() {
     if [[ "$(docker images -q $IMAGE_NAME 2> /dev/null)" == "" ]]; then
         print_info "Anvil image not found. Building..."
@@ -39,67 +24,96 @@ build_image() {
 
 # --- Tool Execution ---
 
-# Function to run all checks
+run_checks() {
+    local command=$1
+    print_info "Running $command checks..."
+
+    local project_type=""
+    if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+        project_type="python"
+    elif [ -f "package.json" ]; then
+        project_type="nodejs"
+    fi
+
+    if [ -z "$project_type" ]; then
+        print_warning "No supported project type detected (Python or Node.js)."
+        return
+    fi
+
+    local docker_command=""
+    case "$project_type-$command" in
+        python-lint)
+            docker_command="ruff check . && black --check ."
+            ;;
+        python-security)
+            docker_command="bandit -r . && safety check"
+            ;;
+        nodejs-lint)
+            docker_command="npm install && eslint . && prettier --check ."
+            ;;
+        nodejs-security)
+            docker_command="npm audit"
+            ;;
+        *)
+            print_warning "No specific $command checks for $project_type."
+            return
+            ;;
+    esac
+
+    print_info "$project_type project detected. Running checks..."
+    docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "$docker_command" || print_warning "$project_type $command issues found."
+
+}
+
 run_all_checks() {
-    print_info "Running all checks..."
-    run_lint_checks
-    run_security_checks
-    print_success "All checks completed."
-}
-
-# Function to run linting and formatting checks
-run_lint_checks() {
-    print_info "Running linting and formatting checks..."
-
-    # Detect project type
-    if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-        print_info "Python project detected."
-        docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "ruff check . && black --check ." || print_warning "Python linting/formatting issues found."
-    fi
-
-    if [ -f "package.json" ]; then
-        print_info "Node.js project detected."
-        docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "npm install && eslint . && prettier --check ." || print_warning "Node.js linting/formatting issues found."
-    fi
-}
-
-# Function to run security checks
-run_security_checks() {
-    print_info "Running security checks..."
-
-    # Detect project type
-    if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-        print_info "Python project detected."
-        docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "bandit -r . && safety check" || print_warning "Python security issues found."
-    fi
-
-    if [ -f "package.json" ]; then
-        print_info "Node.js project detected."
-        docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "npm audit" || print_warning "Node.js security issues found."
-    fi
-
+    run_checks "lint"
+    run_checks "security"
     print_info "Running general security checks..."
     docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "semgrep --config=auto ." || print_warning "Semgrep issues found."
     docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "detect-secrets scan ." || print_warning "Secrets detected."
+    print_success "All checks completed."
+}
+
+
+# --- Help Message ---
+
+show_help() {
+    cat << EOF
+
+🔨 Anvil - A simple, containerized tool for code quality and security.
+
+USAGE:
+  ./anvil.sh [COMMAND]
+
+COMMANDS:
+  (no command)    Run all checks (linting, formatting, and security).
+  lint            Run linting and formatting checks.
+  security        Run security scans.
+  help            Show this help message.
+
+DESCRIPTION:
+  Anvil automatically detects the project type (Python or Node.js) and runs a
+  suite of best-practice tools within a Docker container. This ensures
+  consistent code quality without needing to install tools on your host machine.
+
+EOF
 }
 
 # --- Main Logic ---
 
-# Build the image first
 build_image
 
-# Parse command-line arguments
 case "$1" in
-    --lint)
-        run_lint_checks
+    lint)
+        run_checks "lint"
         ;;
-    --security)
-        run_security_checks
+    security)
+        run_checks "security"
         ;;
-    --help)
-        echo "Usage: ./anvil.sh [ --lint | --security | --help ]"
+    help|--help)
+        show_help
         ;;
-    *)
+    ""|*)
         run_all_checks
         ;;
 esac
