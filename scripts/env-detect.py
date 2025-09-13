@@ -88,12 +88,10 @@ class EnvironmentDetector:
                 "dockerfiles": [str(f.relative_to(self.project_path)) for f in docker_files if f.name.startswith("Dockerfile")]
             }
         
-        # Git
+        # Git (detection only, no management)
         if (self.project_path / ".git").exists():
             infra["git"] = {
-                "current_branch": self._get_git_branch(),
-                "remote_url": self._get_git_remote(),
-                "uncommitted_changes": self._has_uncommitted_changes()
+                "detected": True
             }
         
         # CI/CD
@@ -306,30 +304,6 @@ class EnvironmentDetector:
             return result.stdout.strip()
         except:
             return None
-    
-    def _get_git_branch(self) -> Optional[str]:
-        try:
-            result = subprocess.run(["git", "branch", "--show-current"], 
-                                  capture_output=True, text=True, cwd=self.project_path)
-            return result.stdout.strip()
-        except:
-            return None
-    
-    def _get_git_remote(self) -> Optional[str]:
-        try:
-            result = subprocess.run(["git", "remote", "get-url", "origin"], 
-                                  capture_output=True, text=True, cwd=self.project_path)
-            return result.stdout.strip()
-        except:
-            return None
-    
-    def _has_uncommitted_changes(self) -> bool:
-        try:
-            result = subprocess.run(["git", "status", "--porcelain"], 
-                                  capture_output=True, text=True, cwd=self.project_path)
-            return bool(result.stdout.strip())
-        except:
-            return False
     
     def _command_exists(self, command: str) -> bool:
         try:

@@ -19,10 +19,10 @@ hooks:
       command: "echo '🔧 Tip: ./anvil lint provides comprehensive quality checks'"
 ```
 
-**Manual Workflow Considerations:**
-- Hooks suggest, not block - users can still commit manually
-- Git worktrees supported: separate `.anvil/` per worktree, shared containers
-- Branch workflow: `git worktree add ../feature-name -b feature-name && ./anvil check`
+**Code Quality Focus:**
+- Anvil ensures linting happens before commits (core responsibility)
+- No git management - purely code quality validation
+- Hooks suggest Anvil for comprehensive quality checks
 
 ## What Anvil Does
 
@@ -38,7 +38,7 @@ Anvil provides bulletproof development tooling through containerized tools:
 ```bash
 ./scripts/anvil.sh check
 ```
-Runs complete quality workflow: env detection → security scan → linting → git status
+Runs complete quality workflow: env detection → security scan → linting
 
 ### Setup & Management
 ```bash

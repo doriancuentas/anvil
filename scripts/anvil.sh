@@ -72,7 +72,6 @@ workflows:
       - "env-detect"
       - "security-scan" 
       - "lint-format"
-      - "git-status"
     fail_fast: false
 
 # Tool availability (updated by scripts)
@@ -266,19 +265,6 @@ EOF
     else
         warn "JavaScript/TypeScript linting found issues"
         update_results "js_linting" "warning" "JavaScript/TypeScript linting found issues to fix"
-    fi
-    
-    # Step 5: Git status
-    log "Step 5: Git status check"
-    if [ -d "$PROJECT_ROOT/.git" ]; then
-        cd "$PROJECT_ROOT"
-        if git status --porcelain | grep -q .; then
-            update_results "git" "warning" "Uncommitted changes detected"
-        else
-            update_results "git" "success" "Working directory clean"
-        fi
-    else
-        update_results "git" "info" "Not a git repository"
     fi
     
     success "Quality check workflow completed"
@@ -757,11 +743,12 @@ EXAMPLES:
     $0 results              # Show last results
 
 The script is designed to be bulletproof:
-- Global containers = shared across all projects (efficient)
-- Missing tools = containers provide them
-- Project configs = mounted as volumes in containers
-- Failures = reported, not fixed by LLM
-- Results = written to YAML for LLM consumption
+- **Code Quality Focus**: Ensures linting before commits, no git management
+- **Global containers**: shared across all projects (efficient)
+- **Missing tools**: containers provide them
+- **Project configs**: mounted as volumes in containers
+- **Failures**: reported, not fixed by LLM
+- **Results**: written to YAML for LLM consumption
 
 EOF
 }

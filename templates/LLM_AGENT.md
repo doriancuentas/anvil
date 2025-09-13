@@ -2,39 +2,29 @@
 
 ## Hooks Configuration
 
-Configure these hooks to work harmoniously with Anvil:
+Configure these hooks to use Anvil for code quality:
 
 ```yaml
 hooks:
-  user_prompt_submit:
-    # Remind about Anvil workflow before git operations
-    - pattern: "git (add|commit|push)"
-      command: "echo '💡 Consider: ./anvil check before committing for quality assurance'"
-  
   tool_use_pre:
     # Suggest Anvil for quality tasks while allowing manual tools
-    - pattern: "(lint|format|prettier|eslint|black|isort)"
-      command: "echo '🔧 Tip: ./anvil lint provides comprehensive quality checks'"
+    - pattern: "(lint|format|prettier|eslint|black|isort|ruff|mypy)"
+      command: "echo '🔧 Tip: ./anvil lint provides comprehensive containerized quality checks'"
 ```
 
-## Manual Workflow Considerations
+## Code Quality Focus
 
-When working manually (outside LLM assistance):
+Anvil handles **code quality only** - no git management:
 
-**Before Committing:**
-- Run `./anvil check` or `./anvil lint` to catch issues early
+**Quality Checks:**
+- Run `./anvil check` or `./anvil lint` to validate code quality
 - Review `.anvil/results.yml` for detailed findings
 - Anvil auto-fixes formatting, you handle logic issues
 
-**Git Worktrees Compatible:**
-- Each worktree maintains separate `.anvil/` directory
-- Containers are global (shared across worktrees for efficiency)
-- Run quality checks independently per worktree: `./anvil check`
-
-**Branch Workflow:**
-- Create feature branch: `git worktree add ../feature-name -b feature-name`
-- Quality check: `cd ../feature-name && ./anvil check`
-- Commit with confidence after Anvil validation
+**Directory Structure:**
+- Each project directory maintains separate `.anvil/` configuration
+- Containers are global (shared for efficiency)
+- Works in any directory: `./anvil check ./src` or `./anvil lint ./components`
 
 ### Code Quality
 
