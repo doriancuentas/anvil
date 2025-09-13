@@ -23,7 +23,6 @@ RUN npm install -g \
 
 # Install audit tools
 RUN npm install -g \
-    npm-audit-resolver@^3.0.0 \
     audit-ci@^6.6.0
 
 # Create workspace
