@@ -45,11 +45,11 @@ chmod +x scripts/anvil.sh
 
 ## 🏗️ What Anvil Does
 
-### 🐳 Containerized Tools
-- **Python**: black, isort, flake8, mypy, bandit, safety
-- **Node.js**: prettier, eslint, npm audit  
-- **Security**: semgrep, OWASP checks, dependency scanning
-- **Multi-language**: Go, Rust, Shell script linting
+### 🐳 Global Containerized Tools
+- **Python**: ruff, black, isort, flake8, mypy, bandit, safety
+- **Node.js**: prettier, eslint, typescript, npm audit  
+- **Security**: semgrep, bandit, detect-secrets, dependency scanning
+- **Efficient**: One set of containers shared across all projects
 
 ### 🤖 LLM Integration
 - Token-efficient: Scripts do heavy work, LLM reads YAML results
@@ -157,23 +157,33 @@ Claude: "Found 3 formatting issues (auto-fixed) and 1 security alert in requirem
 
 ```
 anvil/                              # ← Anvil repository
-├── anvil.yml                       # Configuration (auto-created)
-├── results.yml                     # Latest results (LLM reads this)
 ├── scripts/
 │   ├── anvil.sh                   # Main orchestration script
 │   └── env-detect.py              # Environment detection
-├── containers/
-│   ├── linting/                   # Python/Node linting tools
+├── containers/                     # Global container definitions
+│   ├── linting/                   # Python linting tools
+│   ├── nodejs/                    # JavaScript/TypeScript tools
 │   └── security/                  # Security scanning tools
+├── templates/                      # Configuration templates
+│   ├── ruff.toml                  # Python linting rules
+│   ├── .eslintrc.js               # JavaScript linting rules
+│   └── ...                        # Other config templates
 ├── agents/
 │   └── anvil.md                   # LLM agent definition
 └── README.md                      # This file
 
 # When used in projects:
 your-project/
+├── .anvil/                         # ← Project-specific configs
+│   ├── ruff.toml                  # Customizable linting rules
+│   ├── .eslintrc.js               # Customizable JS rules
+│   └── scripts/                   # Anvil scripts
 ├── .claude/agents/                 # ← Copy agent here
 │   └── anvil.md                   # Anvil LLM agent
 └── src/                           # Your project files
+
+# Global containers (shared across all projects):
+docker images anvil/*
 ```
 
 ## 🏁 Workflow Examples

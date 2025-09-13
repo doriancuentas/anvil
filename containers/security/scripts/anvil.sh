@@ -108,9 +108,10 @@ check_docker() {
     fi
 }
 
-# Build container globally if it doesn't exist
+# Build container if it doesn't exist
 build_container() {
     local container_name="$1"
+    local build_path="$ANVIL_DIR/containers/$container_name"
     
     # Enforce no spaces in paths
     if [[ "$container_name" =~ [[:space:]] ]]; then
@@ -118,35 +119,19 @@ build_container() {
         return 1
     fi
     
-    # Check if container already exists
-    if docker image inspect "anvil/$container_name:latest" &> /dev/null; then
-        log "Container anvil/$container_name already exists, skipping build"
-        return 0
-    fi
-    
-    # Find build path - either from current .anvil or from installer temp
-    local build_path=""
-    if [ -d "$ANVIL_DIR/containers/$container_name" ]; then
-        build_path="$ANVIL_DIR/containers/$container_name"
-    elif [ -d "$PROJECT_ROOT/.anvil/containers/$container_name" ]; then
-        build_path="$PROJECT_ROOT/.anvil/containers/$container_name"
-    else
-        error "Container build path not found for: $container_name"
+    if [ ! -d "$build_path" ]; then
+        error "Container build path not found: $build_path"
         return 1
     fi
     
-    log "Building global anvil/$container_name container..."
+    log "Building anvil/$container_name container..."
     cd "$build_path"
     
     # Copy scripts to container build context
-    if [ -d "$ANVIL_DIR/scripts" ]; then
-        cp -r "$ANVIL_DIR/scripts" ./ 2>/dev/null || true
-    elif [ -d "$PROJECT_ROOT/.anvil/scripts" ]; then
-        cp -r "$PROJECT_ROOT/.anvil/scripts" ./ 2>/dev/null || true
-    fi
+    cp -r "$ANVIL_DIR/scripts" ./ 2>/dev/null || true
     
     if docker build -t "anvil/$container_name:latest" .; then
-        success "Global container anvil/$container_name built successfully"
+        success "Container anvil/$container_name built successfully"
         return 0
     else
         error "Failed to build container anvil/$container_name"
@@ -294,36 +279,6 @@ setup_project() {
     success "Anvil setup completed"
 }
 
-# Update Anvil installation
-update_anvil() {
-    log "Updating Anvil installation..."
-    
-    # Check if we're in a project with .anvil directory
-    if [ ! -d "$PROJECT_ROOT/.anvil" ]; then
-        error "No .anvil directory found. Run the installer first:"
-        echo "curl -sSL https://raw.githubusercontent.com/doriancuentas/anvil/main/install.sh | bash"
-        exit 1
-    fi
-    
-    log "Cleaning up old containers..."
-    docker rmi $(docker images "anvil/*" -q) 2>/dev/null || true
-    
-    log "Re-running Anvil installer to get latest version..."
-    if curl -sSL https://raw.githubusercontent.com/doriancuentas/anvil/main/install.sh | bash; then
-        success "Anvil updated successfully"
-        
-        log "Rebuilding all containers with latest updates..."
-        for container in linting nodejs security; do
-            build_container "$container" || warn "Failed to rebuild $container container"
-        done
-        
-        success "All containers rebuilt with latest updates"
-    else
-        error "Failed to update Anvil"
-        exit 1
-    fi
-}
-
 # Show help
 show_help() {
     cat << EOF
@@ -335,9 +290,7 @@ USAGE:
 COMMANDS:
     check       Run quality check workflow
     setup       Setup Anvil for this project
-    build       Build containers (global, shared across projects)
-    rebuild     Force rebuild all containers
-    update      Update Anvil installation and rebuild containers
+    build       Build all containers
     clean       Clean up containers and cache
     results     Show last results
 
@@ -345,14 +298,10 @@ EXAMPLES:
     $0 check                # Run full quality check
     $0 setup                # Setup Anvil in project
     $0 build linting        # Build specific container
-    $0 rebuild              # Force rebuild all containers
-    $0 update               # Update Anvil and rebuild containers
     $0 results              # Show last results
 
 The script is designed to be bulletproof:
-- Global containers = shared across all projects (efficient)
 - Missing tools = containers provide them
-- Project configs = mounted as volumes in containers
 - Failures = reported, not fixed by LLM
 - Results = written to YAML for LLM consumption
 
@@ -379,16 +328,6 @@ main() {
                     build_container "$container"
                 done
             fi
-            ;;
-        "rebuild")
-            log "Force rebuilding all containers..."
-            docker rmi $(docker images "anvil/*" -q) 2>/dev/null || true
-            for container in linting nodejs security; do
-                build_container "$container"
-            done
-            ;;
-        "update")
-            update_anvil
             ;;
         "clean")
             log "Cleaning up Anvil containers..."
