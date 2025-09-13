@@ -24,9 +24,8 @@ build_image() {
 
 # --- Tool Execution ---
 
-run_checks() {
-    local command=$1
-    print_info "Running $command checks..."
+run_lint_checks() {
+    print_info "Running all linting and security checks..."
 
     local project_type=""
     if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
@@ -37,43 +36,23 @@ run_checks() {
 
     if [ -z "$project_type" ]; then
         print_warning "No supported project type detected (Python or Node.js)."
-        return
+    else
+        print_info "$project_type project detected. Running checks..."
+        case "$project_type" in
+            python)
+                docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "ruff check . && black --check . && bandit -r . && safety check" || print_warning "Python linting/security issues found."
+                ;;
+            nodejs)
+                docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "npm install && eslint . && prettier --check . && npm audit" || print_warning "Node.js linting/security issues found."
+                ;;
+        esac
     fi
 
-    local docker_command=""
-    case "$project_type-$command" in
-        python-lint)
-            docker_command="ruff check . && black --check ."
-            ;;
-        python-security)
-            docker_command="bandit -r . && safety check"
-            ;;
-        nodejs-lint)
-            docker_command="npm install && eslint . && prettier --check ."
-            ;;
-        nodejs-security)
-            docker_command="npm audit"
-            ;;
-        *)
-            print_warning "No specific $command checks for $project_type."
-            return
-            ;;
-    esac
-
-    print_info "$project_type project detected. Running checks..."
-    docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "$docker_command" || print_warning "$project_type $command issues found."
-
-}
-
-run_all_checks() {
-    run_checks "lint"
-    run_checks "security"
     print_info "Running general security checks..."
     docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "semgrep --config=auto ." || print_warning "Semgrep issues found."
     docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "detect-secrets scan ." || print_warning "Secrets detected."
     print_success "All checks completed."
 }
-
 
 # --- Help Message ---
 
@@ -87,8 +66,7 @@ USAGE:
 
 COMMANDS:
   (no command)    Run all checks (linting, formatting, and security).
-  lint            Run linting and formatting checks.
-  security        Run security scans.
+  lint            Run all checks (linting, formatting, and security).
   help            Show this help message.
 
 DESCRIPTION:
@@ -105,15 +83,12 @@ build_image
 
 case "$1" in
     lint)
-        run_checks "lint"
-        ;;
-    security)
-        run_checks "security"
+        run_lint_checks
         ;;
     help|--help)
         show_help
         ;;
     ""|*)
-        run_all_checks
+        run_lint_checks
         ;;
 esac
