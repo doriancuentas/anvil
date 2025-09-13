@@ -8,8 +8,16 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PosixPath
 from typing import Dict, List, Optional, Tuple
+
+
+class PathJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles Path objects"""
+    def default(self, obj):
+        if isinstance(obj, (Path, PosixPath)):
+            return str(obj)
+        return super().default(obj)
 
 
 class EnvironmentDetector:
@@ -76,8 +84,8 @@ class EnvironmentDetector:
         if docker_files:
             infra["docker"] = {
                 "files": [str(f.relative_to(self.project_path)) for f in docker_files],
-                "compose_files": [f for f in docker_files if "compose" in f.name],
-                "dockerfiles": [f for f in docker_files if f.name.startswith("Dockerfile")]
+                "compose_files": [str(f.relative_to(self.project_path)) for f in docker_files if "compose" in f.name],
+                "dockerfiles": [str(f.relative_to(self.project_path)) for f in docker_files if f.name.startswith("Dockerfile")]
             }
         
         # Git
@@ -167,7 +175,7 @@ class EnvironmentDetector:
                 "infrastructure": infra,
                 "suggestions": suggestions,
                 "security_tools": security_tools
-            }, indent=2)
+            }, indent=2, cls=PathJSONEncoder)
         
         # Console format
         report = []

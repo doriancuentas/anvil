@@ -151,7 +151,7 @@ run_bandit() {
 # Run safety dependency check
 run_safety() {
     log "Running safety dependency check..."
-    if safety check --json --output safety-report.json; then
+    if safety check --json > safety-report.json; then
         success "Dependency safety check passed"
     else
         error "Dependency safety check found vulnerabilities"

@@ -20,14 +20,12 @@ RUN pip install --no-cache-dir \
 
 # Install Node.js security tools globally
 RUN npm install -g \
-    npm-audit-resolver@^3.0.0 \
     audit-ci@^6.6.0 \
     retire@^4.0.0
 
 # Install additional security scanners
 RUN pip install --no-cache-dir \
-    detect-secrets==1.* \
-    truffleHog3==3.*
+    detect-secrets==1.*
 
 # Create workspace
 WORKDIR /workspace

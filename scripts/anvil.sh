@@ -305,22 +305,203 @@ update_anvil() {
         exit 1
     fi
     
+    # Backup existing configs if they exist
+    local backup_dir="$PROJECT_ROOT/.anvil-backup-$(date +%Y%m%d-%H%M%S)"
+    local configs_to_backup=("ruff.toml" "pyproject.toml" ".eslintrc.js" ".prettierrc.json" ".bandit" ".gitignore")
+    local has_custom_configs=false
+    
+    log "Checking for custom configuration files..."
+    for config in "${configs_to_backup[@]}"; do
+        if [ -f "$PROJECT_ROOT/.anvil/$config" ]; then
+            has_custom_configs=true
+            break
+        fi
+    done
+    
+    if [ "$has_custom_configs" = true ]; then
+        echo
+        warn "Custom configuration files detected in .anvil/"
+        echo "These files may have been manually modified:"
+        for config in "${configs_to_backup[@]}"; do
+            if [ -f "$PROJECT_ROOT/.anvil/$config" ]; then
+                echo "  - $config"
+            fi
+        done
+        echo
+        echo "Options:"
+        echo "  1) Keep existing configs (recommended if you've made customizations)"
+        echo "  2) Replace with latest Anvil templates (get new features/fixes)"
+        echo "  3) Backup existing and replace with templates"
+        echo
+        read -p "Choose option (1/2/3) [1]: " config_choice
+        config_choice=${config_choice:-1}
+        
+        case $config_choice in
+            1)
+                log "Keeping existing configuration files"
+                ;;
+            2)
+                log "Will replace configs with latest templates"
+                ;;
+            3)
+                log "Creating backup and replacing configs"
+                mkdir -p "$backup_dir"
+                for config in "${configs_to_backup[@]}"; do
+                    if [ -f "$PROJECT_ROOT/.anvil/$config" ]; then
+                        cp "$PROJECT_ROOT/.anvil/$config" "$backup_dir/"
+                    fi
+                done
+                success "Configs backed up to: $backup_dir"
+                ;;
+            *)
+                log "Invalid choice, keeping existing configs"
+                config_choice=1
+                ;;
+        esac
+    fi
+    
+    # Clean up old containers
     log "Cleaning up old containers..."
     docker rmi $(docker images "anvil/*" -q) 2>/dev/null || true
     
-    log "Re-running Anvil installer to get latest version..."
-    if curl -sSL https://raw.githubusercontent.com/doriancuentas/anvil/main/install.sh | bash; then
-        success "Anvil updated successfully"
-        
-        log "Rebuilding all containers with latest updates..."
-        for container in linting nodejs security; do
-            build_container "$container" || warn "Failed to rebuild $container container"
-        done
-        
-        success "All containers rebuilt with latest updates"
-    else
-        error "Failed to update Anvil"
+    # Download latest Anvil from GitHub
+    log "Downloading latest Anvil from GitHub..."
+    local temp_dir
+    temp_dir=$(mktemp -d)
+    
+    if ! git clone --depth=1 https://github.com/doriancuentas/anvil.git "$temp_dir"; then
+        error "Failed to download latest Anvil from GitHub"
+        rm -rf "$temp_dir"
         exit 1
+    fi
+    
+    # Update scripts and containers
+    log "Updating Anvil components..."
+    cp -r "$temp_dir/scripts/"* "$PROJECT_ROOT/.anvil/scripts/"
+    cp -r "$temp_dir/containers/"* "$PROJECT_ROOT/.anvil/containers/"
+    
+    # Update configs based on user choice
+    if [ "$config_choice" = "2" ] || [ "$config_choice" = "3" ]; then
+        log "Updating configuration templates..."
+        if [ -d "$temp_dir/templates" ]; then
+            cp -r "$temp_dir/templates/"* "$PROJECT_ROOT/.anvil/"
+        fi
+    fi
+    
+    # Clean up
+    rm -rf "$temp_dir"
+    
+    # Make scripts executable
+    chmod +x "$PROJECT_ROOT/.anvil/scripts"/*.sh
+    
+    success "Anvil updated to latest version"
+    
+    # Rebuild containers
+    log "Rebuilding all containers with latest updates..."
+    for container in linting nodejs security; do
+        build_container "$container" || warn "Failed to rebuild $container container"
+    done
+    
+    success "All containers rebuilt with latest updates"
+    
+    if [ "$config_choice" = "3" ]; then
+        echo
+        success "Update complete! Your old configs are backed up in:"
+        echo "  $backup_dir"
+    fi
+}
+
+# Uninstall Anvil
+uninstall_anvil() {
+    log "Uninstalling Anvil..."
+    
+    echo
+    warn "This will remove:"
+    echo "  - .anvil/ directory and all configurations"
+    echo "  - anvil wrapper script"
+    echo "  - All Anvil Docker containers"
+    echo "  - Anvil LLM agents (if found)"
+    echo
+    echo "Your project files will NOT be affected."
+    echo
+    read -p "Are you sure you want to uninstall Anvil? (y/N): " confirm
+    
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        log "Uninstall cancelled"
+        return 0
+    fi
+    
+    local uninstall_errors=0
+    
+    # Remove .anvil directory
+    if [ -d "$PROJECT_ROOT/.anvil" ]; then
+        log "Removing .anvil directory..."
+        if rm -rf "$PROJECT_ROOT/.anvil"; then
+            success "Removed .anvil directory"
+        else
+            error "Failed to remove .anvil directory"
+            uninstall_errors=$((uninstall_errors + 1))
+        fi
+    fi
+    
+    # Remove anvil wrapper script
+    if [ -f "$PROJECT_ROOT/anvil" ]; then
+        log "Removing anvil wrapper script..."
+        if rm -f "$PROJECT_ROOT/anvil"; then
+            success "Removed anvil wrapper script"
+        else
+            error "Failed to remove anvil wrapper script"
+            uninstall_errors=$((uninstall_errors + 1))
+        fi
+    fi
+    
+    # Remove Docker containers
+    log "Removing Anvil Docker containers..."
+    local containers_removed=0
+    if docker images "anvil/*" -q | head -1 | grep -q .; then
+        if docker rmi $(docker images "anvil/*" -q) 2>/dev/null; then
+            containers_removed=1
+            success "Removed Anvil Docker containers"
+        else
+            warn "Some Docker containers may not have been removed"
+        fi
+    else
+        log "No Anvil Docker containers found"
+    fi
+    
+    # Look for and offer to remove LLM agents
+    local agent_dirs=()
+    [ -d "$HOME/.claude/agents" ] && agent_dirs+=("$HOME/.claude/agents")
+    [ -d "$HOME/.gemini/agents" ] && agent_dirs+=("$HOME/.gemini/agents")
+    [ -d "$HOME/.cursor/agents" ] && agent_dirs+=("$HOME/.cursor/agents")
+    [ -d "$PROJECT_ROOT/.claude/agents" ] && agent_dirs+=("$PROJECT_ROOT/.claude/agents")
+    [ -d "$PROJECT_ROOT/.gemini/agents" ] && agent_dirs+=("$PROJECT_ROOT/.gemini/agents")
+    [ -d "$PROJECT_ROOT/.cursor/agents" ] && agent_dirs+=("$PROJECT_ROOT/.cursor/agents")
+    
+    for agent_dir in "${agent_dirs[@]}"; do
+        if [ -f "$agent_dir/anvil.md" ]; then
+            log "Found Anvil agent in: $agent_dir"
+            read -p "Remove Anvil agent from $agent_dir? (y/N): " remove_agent
+            if [[ "$remove_agent" =~ ^[Yy]$ ]]; then
+                if rm -f "$agent_dir/anvil.md"; then
+                    success "Removed Anvil agent from $agent_dir"
+                else
+                    error "Failed to remove agent from $agent_dir"
+                    uninstall_errors=$((uninstall_errors + 1))
+                fi
+            fi
+        fi
+    done
+    
+    echo
+    if [ $uninstall_errors -eq 0 ]; then
+        success "🗑️  Anvil uninstalled successfully!"
+        echo
+        echo "To reinstall Anvil:"
+        echo "  curl -sSL https://raw.githubusercontent.com/doriancuentas/anvil/main/install.sh | bash"
+    else
+        warn "Uninstall completed with $uninstall_errors errors"
+        echo "You may need to manually remove some components"
     fi
 }
 
@@ -338,6 +519,7 @@ COMMANDS:
     build       Build containers (global, shared across projects)
     rebuild     Force rebuild all containers
     update      Update Anvil installation and rebuild containers
+    uninstall   Remove Anvil completely from this project
     clean       Clean up containers and cache
     results     Show last results
 
@@ -347,6 +529,7 @@ EXAMPLES:
     $0 build linting        # Build specific container
     $0 rebuild              # Force rebuild all containers
     $0 update               # Update Anvil and rebuild containers
+    $0 uninstall            # Remove Anvil completely
     $0 results              # Show last results
 
 The script is designed to be bulletproof:
@@ -389,6 +572,9 @@ main() {
             ;;
         "update")
             update_anvil
+            ;;
+        "uninstall")
+            uninstall_anvil
             ;;
         "clean")
             log "Cleaning up Anvil containers..."
