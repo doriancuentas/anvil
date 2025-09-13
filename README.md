@@ -7,7 +7,6 @@ Anvil provides containerized development tools and intelligent LLM integration f
 ### One-Line Installation
 
 ```bash
-# Install Anvil in any project directory
 curl -sSL https://raw.githubusercontent.com/doriancuentas/anvil/main/install.sh | bash
 ```
 
