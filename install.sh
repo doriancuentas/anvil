@@ -111,7 +111,7 @@ install_agents() {
     fi
     
     # Convert string to array
-    local llm_dirs=($llm_dirs_string)
+    read -r -a llm_dirs <<< "$llm_dirs_string"
     
     log "Found LLM agent directories: ${llm_dirs[*]}"
     

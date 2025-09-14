@@ -32,10 +32,12 @@ run_lint_checks() {
         project_type="python"
     elif [ -f "package.json" ]; then
         project_type="nodejs"
+    elif ls ./*.sh &> /dev/null; then
+        project_type="shell"
     fi
 
     if [ -z "$project_type" ]; then
-        print_warning "No supported project type detected (Python or Node.js)."
+        print_warning "No supported project type detected (Python, Node.js, or Shell)."
     else
         print_info "$project_type project detected. Running checks..."
         case "$project_type" in
@@ -44,6 +46,9 @@ run_lint_checks() {
                 ;;
             nodejs)
                 docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "npm install && eslint . && prettier --check . && npm audit" || print_warning "Node.js linting/security issues found."
+                ;;
+            shell)
+                docker run --rm -v "$(pwd)":/app $IMAGE_NAME /bin/bash -c "shellcheck *.sh" || print_warning "Shell script linting issues found."
                 ;;
         esac
     fi
