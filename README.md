@@ -1,3 +1,5 @@
+-- Deprecated in favor or https://github.com/doriancuentas/lysmata --
+
 # 🔨 Anvil - Simple, Powerful, Containerized Code Quality
 
 Anvil is a single, intelligent Docker container that automatically detects your project's language and frameworks to lint, format, and scan for security vulnerabilities. No complex configuration, no dependency hell—just straightforward code quality.
